@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Session Switcher",
+  "name": "Session Swap",
   "version": "1.0.4",
   "description": "Switch between multiple login sessions easily.",
   "permissions": ["cookies", "storage", "scripting"],

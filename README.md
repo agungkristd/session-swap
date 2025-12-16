@@ -1,4 +1,4 @@
-# Session Switcher
+# Session Swap
 
 A browser extension to easily switch between multiple login sessions on the same website. Supports Chrome and Firefox.
 
@@ -16,7 +16,7 @@ You can install the extension without building it yourself by downloading the la
 ### Chrome / Edge / Brave
 
 1.  Go to the [Releases](../../releases) page.
-2.  Download `session-switcher-chrome.zip`.
+2.  Download `session-swap-chrome.zip`.
 3.  Unzip the file.
 4.  Open your browser's extension management page (e.g., `chrome://extensions`).
 5.  Enable **Developer Mode**.
@@ -27,7 +27,7 @@ You can install the extension without building it yourself by downloading the la
 ### Firefox
 
 1.  Go to the [Releases](../../releases) page.
-2.  Download `session-switcher-firefox.xpi`.
+2.  Download `session-swap-firefox.xpi`.
 3.  Open Firefox and go to `about:addons`.
 4.  Click the gear icon and select **Install Add-on From File...** (or drag and drop the `.xpi` file).
 
@@ -79,4 +79,4 @@ To create a `.xpi` file for Firefox:
 bun run package:firefox
 ```
 
-The output file `session-switcher-firefox.xpi` will be in the project root.
+The output file `session-swap-firefox.xpi` will be in the project root.
