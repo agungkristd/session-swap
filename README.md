@@ -16,16 +16,18 @@ You can install the extension without building it yourself by downloading the la
 ### Chrome / Edge / Brave
 
 1.  Go to the [Releases](../../releases) page.
-2.  Download `chrome-extension.zip`.
+2.  Download `session-switcher-chrome.zip`.
 3.  Unzip the file.
 4.  Open your browser's extension management page (e.g., `chrome://extensions`).
 5.  Enable **Developer Mode**.
 6.  Click **Load Unpacked** and select the unzipped folder.
 
+> **⚠️ IMPORTANT:** You must **keep this folder** on your computer. Extensions installed via "Load Unpacked" are just links to the files on your disk. If you delete or move the folder, the extension will stop working!
+
 ### Firefox
 
 1.  Go to the [Releases](../../releases) page.
-2.  Download `session-switcher.xpi`.
+2.  Download `session-switcher-firefox.xpi`.
 3.  Open Firefox and go to `about:addons`.
 4.  Click the gear icon and select **Install Add-on From File...** (or drag and drop the `.xpi` file).
 
@@ -77,4 +79,4 @@ To create a `.xpi` file for Firefox:
 bun run package:firefox
 ```
 
-The output file `session-switcher.xpi` will be in the project root.
+The output file `session-switcher-firefox.xpi` will be in the project root.
