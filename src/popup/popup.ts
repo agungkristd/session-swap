@@ -35,13 +35,74 @@ document.addEventListener("DOMContentLoaded", async () => {
   const confirmationModal = document.getElementById(
     "confirmation-modal"
   ) as HTMLElement;
-  const confirmSessionNameSpan = document.getElementById(
-    "confirm-session-name"
-  ) as HTMLElement;
-  const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
-  const confirmOverwriteBtn = document.getElementById("confirm-overwrite-btn");
+  const modalTitle = document.getElementById("modal-title") as HTMLElement;
+  const modalMessage = document.getElementById("modal-message") as HTMLElement;
+  const modalCancelBtn = document.getElementById("modal-cancel-btn");
+  const modalConfirmBtn = document.getElementById("modal-confirm-btn");
 
   let pendingAction: (() => Promise<void>) | null = null;
+  let closeModal: (() => void) | null = null;
+
+  function escapeHtml(text: string): string {
+    const map: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+  }
+
+  function showModal(
+    title: string,
+    message: string,
+    confirmLabel: string,
+    onConfirm: () => Promise<void>,
+    isDestructive = false
+  ) {
+    if (modalTitle) modalTitle.textContent = title;
+    if (modalMessage) modalMessage.innerHTML = message;
+
+    if (modalConfirmBtn) {
+      modalConfirmBtn.textContent = confirmLabel;
+      if (isDestructive) {
+        modalConfirmBtn.classList.remove(
+          "bg-blue-500",
+          "hover:bg-blue-600",
+          "border-blue-500"
+        );
+        modalConfirmBtn.classList.add(
+          "bg-red-500",
+          "hover:bg-red-600",
+          "border-red-500"
+        );
+      } else {
+        modalConfirmBtn.classList.remove(
+          "bg-red-500",
+          "hover:bg-red-600",
+          "border-red-500"
+        );
+        modalConfirmBtn.classList.add(
+          "bg-blue-500",
+          "hover:bg-blue-600",
+          "border-blue-500"
+        );
+      }
+    }
+
+    pendingAction = onConfirm;
+
+    // Explicit close handler
+    closeModal = () => {
+      confirmationModal.classList.add("hidden");
+      confirmationModal.classList.remove("flex");
+      pendingAction = null;
+    };
+
+    confirmationModal.classList.remove("hidden");
+    confirmationModal.classList.add("flex");
+  }
 
   // State for Create vs Rename
   let isRenaming = false;
@@ -245,23 +306,31 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function handleResetSite() {
-    // Auto-save current before clearing
-    const activeSessionName = await getActiveSession(domain!);
-    if (activeSessionName) {
-      await handleSaveSession(activeSessionName, true);
-    }
+    showModal(
+      "Start New Session?",
+      "This will clear your current session and log you out. Save this session first if it's important!",
+      "Start New Session",
+      async () => {
+        // Auto-save current before clearing
+        const activeSessionName = await getActiveSession(domain!);
+        if (activeSessionName) {
+          await handleSaveSession(activeSessionName, true);
+        }
 
-    await clearStorage(tab.id!);
-    const currentCookies = await chrome.cookies.getAll({ url: tab.url });
-    for (const cookie of currentCookies) {
-      await chrome.cookies.remove({
-        url: getCookieUrl(cookie),
-        name: cookie.name,
-      });
-    }
-    await setActiveSession(domain!, null);
-    await chrome.tabs.reload(tab.id!);
-    window.close();
+        await clearStorage(tab.id!);
+        const currentCookies = await chrome.cookies.getAll({ url: tab.url });
+        for (const cookie of currentCookies) {
+          await chrome.cookies.remove({
+            url: getCookieUrl(cookie),
+            name: cookie.name,
+          });
+        }
+        await setActiveSession(domain!, null);
+        await chrome.tabs.reload(tab.id!);
+        window.close();
+      },
+      true // Destructive (Red button)
+    );
   }
 
   async function refresh() {
@@ -307,12 +376,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     if (needsConfirmation) {
-      pendingAction = action;
-      if (confirmSessionNameSpan) confirmSessionNameSpan.textContent = name;
-      if (confirmationModal) {
-        confirmationModal.classList.remove("hidden");
-        confirmationModal.classList.add("flex");
-      }
+      const safeName = escapeHtml(name);
+      showModal(
+        "Session Exists",
+        `A session with the name <span class="font-bold">${safeName}</span> already exists. Do you want to replace it?`,
+        "Replace",
+        action,
+        true
+      );
       return;
     }
 
@@ -374,23 +445,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   // Modal Event Listeners
-  if (confirmCancelBtn) {
-    confirmCancelBtn.addEventListener("click", () => {
-      confirmationModal.classList.add("hidden");
-      confirmationModal.classList.remove("flex");
-      pendingAction = null;
+  if (modalCancelBtn) {
+    modalCancelBtn.addEventListener("click", () => {
+      if (closeModal) closeModal();
       newSessionNameInput.focus();
     });
   }
 
-  if (confirmOverwriteBtn) {
-    confirmOverwriteBtn.addEventListener("click", async () => {
+  if (modalConfirmBtn) {
+    modalConfirmBtn.addEventListener("click", async () => {
       if (pendingAction) {
         await pendingAction();
       }
-      confirmationModal.classList.add("hidden");
-      confirmationModal.classList.remove("flex");
-      pendingAction = null;
+      if (closeModal) closeModal();
     });
   }
 });
