@@ -11,37 +11,33 @@ import {
   setActiveSession,
 } from "./storage";
 import { renderSessions } from "./ui";
-import type { Session, StorageData } from "./types.ts";
+import type { Session } from "./types";
+import { Modal } from "./components/Modal";
+import { InputField } from "./components/InputField";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Top-level elements
   const sessionList = document.getElementById("session-list");
   const emptyState = document.querySelector(".empty-state") as HTMLElement;
-  const addSessionContainer = document.getElementById(
-    "add-session-container"
-  ) as HTMLElement;
-
-  // Buttons
   const newSessionBtn = document.getElementById("new-session-btn"); // Reset Site
   const addSessionBtn = document.getElementById("add-session-btn"); // Save Session
-  const saveSessionConfirm = document.getElementById("save-session-confirm");
-  const cancelSessionSave = document.getElementById("cancel-session-save");
-  const newSessionNameInput = document.getElementById(
-    "new-session-name"
-  ) as HTMLInputElement;
   const themeBtn = document.getElementById("theme-btn");
 
-  // Modal Elements
-  const confirmationModal = document.getElementById(
-    "confirmation-modal"
-  ) as HTMLElement;
-  const modalTitle = document.getElementById("modal-title") as HTMLElement;
-  const modalMessage = document.getElementById("modal-message") as HTMLElement;
-  const modalCancelBtn = document.getElementById("modal-cancel-btn");
-  const modalConfirmBtn = document.getElementById("modal-confirm-btn");
+  // Initialize Components
+  const modal = new Modal(
+    "confirmation-modal",
+    "modal-title",
+    "modal-message",
+    "modal-cancel-btn",
+    "modal-confirm-btn"
+  );
 
-  let pendingAction: (() => Promise<void>) | null = null;
-  let closeModal: (() => void) | null = null;
+  const inputField = new InputField(
+    "add-session-container",
+    "new-session-name",
+    "save-session-confirm",
+    "cancel-session-save"
+  );
 
   function escapeHtml(text: string): string {
     const map: Record<string, string> = {
@@ -52,56 +48,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       "'": "&#039;",
     };
     return text.replace(/[&<>"']/g, (m) => map[m]);
-  }
-
-  function showModal(
-    title: string,
-    message: string,
-    confirmLabel: string,
-    onConfirm: () => Promise<void>,
-    isDestructive = false
-  ) {
-    if (modalTitle) modalTitle.textContent = title;
-    if (modalMessage) modalMessage.innerHTML = message;
-
-    if (modalConfirmBtn) {
-      modalConfirmBtn.textContent = confirmLabel;
-      if (isDestructive) {
-        modalConfirmBtn.classList.remove(
-          "bg-blue-500",
-          "hover:bg-blue-600",
-          "border-blue-500"
-        );
-        modalConfirmBtn.classList.add(
-          "bg-red-500",
-          "hover:bg-red-600",
-          "border-red-500"
-        );
-      } else {
-        modalConfirmBtn.classList.remove(
-          "bg-red-500",
-          "hover:bg-red-600",
-          "border-red-500"
-        );
-        modalConfirmBtn.classList.add(
-          "bg-blue-500",
-          "hover:bg-blue-600",
-          "border-blue-500"
-        );
-      }
-    }
-
-    pendingAction = onConfirm;
-
-    // Explicit close handler
-    closeModal = () => {
-      confirmationModal.classList.add("hidden");
-      confirmationModal.classList.remove("flex");
-      pendingAction = null;
-    };
-
-    confirmationModal.classList.remove("hidden");
-    confirmationModal.classList.add("flex");
   }
 
   // State for Create vs Rename
@@ -153,8 +99,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function handleSaveSession(name: string, skipRefresh = false) {
     // Capture cookies
     const cookies = await chrome.cookies.getAll({ url: tab.url });
-    // Capture Storage
-    const storage = await captureLocalStorage(tab.id!);
+    // Capture Storage (SAFE WRAPPER around local storage capture)
+    let storage: Record<string, string> = {};
+    if (
+      tab.url &&
+      !tab.url.startsWith("chrome://") &&
+      !tab.url.startsWith("about:") &&
+      !tab.url.startsWith("edge://")
+    ) {
+      storage = await captureLocalStorage(tab.id!);
+    } else {
+      console.log("Skipping local storage capture for restricted URL");
+    }
 
     const newSession: Session = {
       name,
@@ -210,7 +166,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Restore Storage
-    if (session.localStorage) {
+    // Add check for restricted URLs before creating script injection
+    if (
+      session.localStorage &&
+      tab.url &&
+      !tab.url.startsWith("chrome://") &&
+      !tab.url.startsWith("about:")
+    ) {
       await restoreStorage(tab.id!, session.localStorage);
     }
 
@@ -230,18 +192,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.close();
   }
 
-  // Initiate Rename (Reuse add-session-container)
+  // Initiate Rename (Reuse add-session-container via InputField)
   function handleInitiateRename(index: number, currentName: string) {
     isRenaming = true;
     sessionToRenameIndex = index;
-
-    // Update UI for Rename Mode
-    newSessionNameInput.value = currentName;
-    newSessionNameInput.placeholder = "New Session Name";
-    if (saveSessionConfirm) saveSessionConfirm.textContent = "Rename";
-
-    addSessionContainer.classList.remove("hidden");
-    newSessionNameInput.focus();
+    inputField.show(currentName, "New Session Name", "Rename");
   }
 
   // Execute Rename
@@ -267,10 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function resetFormState() {
-    addSessionContainer.classList.add("hidden");
-    newSessionNameInput.value = "";
-    newSessionNameInput.placeholder = "Session Name (e.g. Personal)";
-    if (saveSessionConfirm) saveSessionConfirm.textContent = "Save Session";
+    inputField.reset();
     isRenaming = false;
     sessionToRenameIndex = null;
   }
@@ -306,7 +258,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function handleResetSite() {
-    showModal(
+    modal.show(
       "Start New Session?",
       "This will clear your current session and log you out. Save this session first if it's important!",
       "Start New Session",
@@ -377,7 +329,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (needsConfirmation) {
       const safeName = escapeHtml(name);
-      showModal(
+      modal.show(
         "Session Exists",
         `A session with the name <span class="font-bold">${safeName}</span> already exists. Do you want to replace it?`,
         "Replace",
@@ -413,51 +365,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Ensure we are in Create Mode
       isRenaming = false;
       sessionToRenameIndex = null;
-      newSessionNameInput.value = "";
-      newSessionNameInput.placeholder = "Session Name (e.g. Personal)";
-      if (saveSessionConfirm) saveSessionConfirm.textContent = "Save Session";
-
-      addSessionContainer.classList.remove("hidden");
-      newSessionNameInput.focus();
+      inputField.show();
     });
   }
 
-  if (cancelSessionSave) {
-    cancelSessionSave.addEventListener("click", () => {
-      resetFormState();
-    });
-  }
-
-  if (saveSessionConfirm) {
-    saveSessionConfirm.addEventListener("click", async () => {
-      const name = newSessionNameInput.value.trim();
-      await handleSessionSubmission(name);
-    });
-  }
-
-  // Allow Enter key to submit (handles both save and rename)
-  if (newSessionNameInput) {
-    newSessionNameInput.addEventListener("keydown", async (e) => {
-      if (e.key === "Enter") {
-        const name = newSessionNameInput.value.trim();
-        await handleSessionSubmission(name);
-      }
-    });
-  }
-  // Modal Event Listeners
-  if (modalCancelBtn) {
-    modalCancelBtn.addEventListener("click", () => {
-      if (closeModal) closeModal();
-      newSessionNameInput.focus();
-    });
-  }
-
-  if (modalConfirmBtn) {
-    modalConfirmBtn.addEventListener("click", async () => {
-      if (pendingAction) {
-        await pendingAction();
-      }
-      if (closeModal) closeModal();
-    });
-  }
+  // Input Field Callbacks
+  inputField.setOnConfirm(handleSessionSubmission);
+  inputField.setOnCancel(resetFormState);
 });

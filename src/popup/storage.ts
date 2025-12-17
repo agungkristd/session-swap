@@ -56,8 +56,14 @@ export async function captureLocalStorage(
     if (result && result[0] && result[0].result) {
       localStorageData = JSON.parse(result[0].result);
     }
-  } catch (e) {
-    console.warn("Failed to capture local storage:", e);
+  } catch (e: any) {
+    if (e.message && e.message.includes("showing error page")) {
+      console.log(
+        "Skipping local storage capture: Tab is showing an error page."
+      );
+    } else {
+      console.warn("Failed to capture local storage:", e);
+    }
   }
   return localStorageData;
 }
@@ -85,8 +91,14 @@ export async function restoreStorage(
       },
       args: [data],
     });
-  } catch (e) {
-    console.warn("Scripting permission might be missing:", e);
+  } catch (e: any) {
+    if (e.message && e.message.includes("showing error page")) {
+      console.log(
+        "Skipping storage restoration: Tab is showing an error page."
+      );
+    } else {
+      console.warn("Scripting permission might be missing:", e);
+    }
   }
 }
 
@@ -104,10 +116,14 @@ export async function clearStorage(tabId: number) {
         }
       },
     });
-  } catch (e) {
-    console.warn(
-      "Scripting permission might be missing or failed to execute:",
-      e
-    );
+  } catch (e: any) {
+    if (e.message && e.message.includes("showing error page")) {
+      console.log("Skipping storage clear: Tab is showing an error page.");
+    } else {
+      console.warn(
+        "Scripting permission might be missing or failed to execute:",
+        e
+      );
+    }
   }
 }
